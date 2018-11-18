@@ -14,6 +14,22 @@ yum install -y wget
 yum install -y java
 yum install -y java-1.8.0-openjdk*
 ```
+4. Check the Java version
+```sh
+java -version
+```
+
+# Making the Java home directory
+
+1. edit the /root/.bash_profile
+```sh
+PATH=$PATH:$HOME/bin:$JAVA_HOME:$M2_HOME:$M2
+JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.191.b12-1.el7_6.x86_64
+```
+2. To get it reflected
+```sh
+source /root/.bash_profile
+```
 
 # Jenkins Installation on RHEL server
 
@@ -69,3 +85,6 @@ ps -ef | grep -i jenkins
 cat /var/lib/jenkins/secrets/initialAdminPassword
 ```
 
+# Troubleshooting
+
+1. Check for the security groups whether you had enabled port 8080
