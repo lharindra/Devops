@@ -75,7 +75,7 @@ PasswordAuthentication yes
 service sshd restart
 ```
 
-# Change the configuraations
+# Change the configurations
 
 1. Establish the SSH connectivity between the servers`
 ```sh
