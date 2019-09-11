@@ -22,29 +22,70 @@ class main_class():
                 self.all_inst_dict_tolist.append(each_inst_dict)
 
     def table_format(self):
-        self.columns = list(self.all_inst_dict_tolist[0].keys()) 
-        self.columns.insert(0, "No.")   
-        tb = SimpleTable(self.columns)
-        row_number = 0
-        for i in self.all_inst_dict_tolist:
-            row_data = []
-            row_number += 1
-            row_data.append(str(row_number))
-            for k, v in i.items():
-                row_data.append(v)
-            tb.add_row(row_data)
-        tb.print_table()
+        try:
+            self.columns = list(self.all_inst_dict_tolist[0].keys()) 
+            self.columns.insert(0, "No.")   
+            tb = SimpleTable(self.columns)
+            row_number = 0
+            for i in self.all_inst_dict_tolist:
+                row_data = []
+                row_number += 1
+                row_data.append(str(row_number))
+                for k, v in i.items():
+                    row_data.append(v)
+                tb.add_row(row_data)
+            tb.print_table()
+        except IndexError:
+            print("Instances are not available. Please use --create to lauch")
 
-    def creat_new_ec2_instances(self, count):
+    def creat_new_ec2_instances(self, count, sec_id):
         count = int(count)
         instances = self.ec2_conn_create.create_instances(
             ImageId = 'ami-00fc224d9834053d6',
             InstanceType = 't2.micro',
             KeyName = 'sshpair',
             MinCount = 1,
-            MaxCount = count
+            MaxCount = count,
+            NetworkInterfaces=[{'DeviceIndex': 0,'Groups': [sec_id], 'SubnetId': "subnet-888586d3", 'DeleteOnTermination': True, 'AssociatePublicIpAddress': True}]
         )
+
         print("Successfully created " + str(count) + " Instances")
+
+    def check_sec_grp(self):
+        check_sec_group = self.ec2_conn_list.describe_security_groups()
+        try:
+            for groups in check_sec_group["SecurityGroups"]:
+                if groups["GroupName"] == "Instance launch":
+                    sec_id = groups["GroupId"]
+                    #print("The security group **" +  groups["GroupName"] + "** which you are trying to create is already there with ID:- "+ groups["GroupId"])
+                    return "Found",sec_id
+                else:
+                    raise Exception
+        except Exception:
+            return "NotFound","NotFound"
+        
+    def create_sec_grp(self, count):
+        check_status, sec_id = self.check_sec_grp()
+        if check_status == "Found":
+            self.creat_new_ec2_instances(count, sec_id)
+        elif check_status == "NotFound":
+            self.sec_group = self.ec2_conn_create.create_security_group(
+                GroupName='Instance launch', Description='Instance launch sec group')
+            self.sec_group.authorize_ingress(
+                IpPermissions=[
+                {'IpProtocol': 'tcp',
+                'FromPort': 80,
+                'ToPort': 80,
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
+                {'IpProtocol': 'tcp',
+                'FromPort': 22,
+                'ToPort': 22,
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}]}
+                ]  
+            )
+            print("Security group not found, so created one :-" + self.sec_group.group_id)
+            self.creat_new_ec2_instances(count, self.sec_group.id)
+        
 
     def stop_instance(self, list_filter):
         try:
@@ -204,4 +245,4 @@ if __name__ == "__main__":
             Mainobj.term_instance(list_option_filter)
 
     if args.create:
-        Mainobj.creat_new_ec2_instances(args.create)
+        Mainobj.create_sec_grp(args.create)
