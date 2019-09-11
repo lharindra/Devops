@@ -14,7 +14,7 @@ export PATH=~/.local/bin:$PATH
 source ~/.bash_profile
 aws configure  
 ```
-# If pip isn't installed with python then try to get the appropriate pip
+## If pip isn't installed with python then try to get the appropriate pip
 ```sh
 cd /tmp
 curl -O https://bootstrap.pypa.io/get-pip.py
