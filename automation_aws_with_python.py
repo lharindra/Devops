@@ -17,7 +17,7 @@ class main_class():
         for reservation in ec2_responce["Reservations"]:
             for instance in reservation["Instances"]:
                 each_inst_dict = {}
-                each_inst_dict["Sate"] = instance["State"]["Name"]
+                each_inst_dict["State"] = instance["State"]["Name"]
                 each_inst_dict["InstanceId"] = instance["InstanceId"]
                 self.all_inst_dict_tolist.append(each_inst_dict)
 
@@ -38,17 +38,21 @@ class main_class():
         except IndexError:
             print("Instances are not available. Please use --create to lauch")
 
-    def creat_new_ec2_instances(self, count, sec_id):
+    def creat_new_ec2_instances(self, count, sec_id, subnet_id):
         count = int(count)
+        tags = [
+                    {'Key':'Name','Value': 'WithAutomation'}
+                ]
+        tag_Specifications = [{'ResourceType': 'instance', 'Tags': tags}]
         instances = self.ec2_conn_create.create_instances(
             ImageId = 'ami-00fc224d9834053d6',
+            TagSpecifications = tag_Specifications, 
             InstanceType = 't2.micro',
             KeyName = 'sshpair',
             MinCount = 1,
             MaxCount = count,
-            NetworkInterfaces=[{'DeviceIndex': 0,'Groups': [sec_id], 'SubnetId': "subnet-888586d3", 'DeleteOnTermination': True, 'AssociatePublicIpAddress': True}]
+            NetworkInterfaces=[{'DeviceIndex': 0,'Groups': [sec_id], 'SubnetId': str(subnet_id), 'DeleteOnTermination': True, 'AssociatePublicIpAddress': True}]
         )
-
         print("Successfully created " + str(count) + " Instances")
 
     def check_sec_grp(self):
@@ -62,12 +66,24 @@ class main_class():
                 else:
                     raise Exception
         except Exception:
-            return "NotFound","NotFound"
+            print("No default VPC or VPC's configured")
+
+    def get_subnetid(self):
+        check_sec_group = self.ec2_conn_list.describe_security_groups()
+        for groups in check_sec_group["SecurityGroups"]:
+            if groups["GroupName"] == "default":
+                vpc_id = groups["VpcId"]
+                response = self.ec2_conn_create.Vpc(id=vpc_id)
+                subnets = []
+                for subnet in response.subnets.all():
+                    subnets.append(subnet.id)
+                return subnets[0]
         
     def create_sec_grp(self, count):
         check_status, sec_id = self.check_sec_grp()
+        subnet_id = self.get_subnetid()
         if check_status == "Found":
-            self.creat_new_ec2_instances(count, sec_id)
+            self.creat_new_ec2_instances(count, sec_id, subnet_id)
         elif check_status == "NotFound":
             self.sec_group = self.ec2_conn_create.create_security_group(
                 GroupName='Instance launch', Description='Instance launch sec group')
@@ -83,9 +99,8 @@ class main_class():
                 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]}
                 ]  
             )
-            print("Security group not found, so created one :-" + self.sec_group.group_id)
-            self.creat_new_ec2_instances(count, self.sec_group.id)
-        
+            print("Security group not found, so created one:-" + self.sec_group.group_id)
+            self.creat_new_ec2_instances(count, self.sec_group.id, subnet_id)
 
     def stop_instance(self, list_filter):
         try:
@@ -101,13 +116,6 @@ class main_class():
     def term_instance(self, list_filter):
         for i in list_filter:
             ec2_start = self.ec2_conn_list.terminate_instances(InstanceIds = [i])
-
-    def filter_list(self, list_option):
-        print("These are the Instances which will be affected:- ")
-        for k in list_option:
-            i = int(k)
-            print(self.all_inst_dict_tolist[i-1]["InstanceId"])
-            self.total_list_assign.append(self.all_inst_dict_tolist[i-1]["InstanceId"])
 
     def confirmation(self):
         try:        
@@ -146,15 +154,6 @@ class main_class():
             return InstanceIds
         except Exception as e:
             return False
-
-
-    def range_listing(self, list_option):
-        range_list = []
-        case_range = list_option.split(",")
-        for r in case_range:
-            range_start_end = r.split("-")
-
-                
 
 class SimpleTable():
 
@@ -217,6 +216,10 @@ if __name__ == "__main__":
     parser.add_argument("--start",help="Start instances")
     parser.add_argument("--term", help="Terminate Instances")
     parser.add_argument("--create", help="Creating imstances")
+    parser.add_argument("--running", help="Creating imstances")
+    parser.add_argument("--stopped", help="Creating imstances")
+    parser.add_argument("--terminated", help="Creating imstances")
+
     args = parser.parse_args()
     Mainobj = main_class()
     if len(sys.argv)<2 or args.list in ("all",""):
